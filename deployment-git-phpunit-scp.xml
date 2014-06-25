@@ -1,0 +1,92 @@
+<?xml version="1.0"?>
+<!--suppress PhingDomInspection -->
+<project name="Shared hosting deployment" default="deploy" basedir=".">
+  <tstamp>
+        <format property="build.time" pattern="%Y%m%d_%H%I" />
+  </tstamp>
+  <propertyprompt propertyName="project" promptText="Project directory" useExistingValue="true" />
+
+    <target name="prepare">
+        <echo msg="Deleting old build and deploy dirs" />
+        <delete dir="${project}/build" includeemptydirs="true" failonerror="false" />
+        <delete dir="${project}/deploy" includeemptydirs="true" failonerror="false" />
+    </target>
+
+    <target name="create" depends="prepare">
+        <echo msg="Creating fresh build and deploy directories" />
+        <mkdir dir="${project}/build" />
+        <mkdir dir="${project}/deploy" />
+    </target>
+
+    <target name="gitcheckout" depends="create">
+        <echo msg="Checking out latest code" />
+        <exec command='/usr/bin/git --git-dir="${project}/.git" checkout-index --prefix "${project}/build/" -a' />
+    </target>
+
+    <target name="preparedeploy" depends="gitcheckout">
+        <echo msg="Preparing deploy" />
+        <copy todir="${project}/deploy" >
+            <fileset dir="${project}/build">
+                <include name="**" />
+                <exclude name="test/**"/>
+            </fileset>
+        </copy>
+        <mkdir dir="${project}/deploy/logs" />
+    </target>
+
+    <target name="cleanup" depends="preparedeploy">
+        <echo msg="Deleting build dir" />
+        <delete dir="${project}/build" includeemptydirs="true" failonerror="true" />
+    </target>
+
+    <target name="build" depends="cleanup, preparedeploy, gitcheckout, create, prepare">
+        <echo msg="Starting build ${build.time}" />
+        <phingcall target="test" />
+        <propertyprompt promptText="Do you want to upload file on server ? y:n" defaultValue="y" propertyName="confirm" />
+        <if>
+            <equals arg1="${confirm}" arg2="y" />
+            <then>
+                <phingcall target="deploy" />
+            </then>
+        </if>
+    </target>
+
+    <!-- TEST -->
+
+    <target name="test">
+        <available file="${project}/test" type="dir" property="dir.Exists" />
+            <if>
+                <isset property="dir.Exists" />
+                <then>
+                    <echo message="Test detected, run test..." />
+                    <phpunit haltonfailure="true" printsummary="true">
+                        <batchtest>
+                            <fileset dir="${project}/test">
+                                <include name="*.php"/>
+                            </fileset>
+                        </batchtest>
+                    </phpunit>
+                </then>
+            </if>
+    </target>
+
+  <!-- DEPLOYMENT -->
+
+  <fileset dir="${project}/deploy" id="files">
+      <include name="**" />
+      <exclude name="test/**"/>
+  </fileset>
+
+  <target name="deploy" depends="test">
+    <propertyprompt propertyName="ftp.host" defaultValue="199.193.192.196" promptText="Host" />
+    <propertyprompt propertyName="ftp.port" defaultValue="22" promptText="Port" />
+    <propertyprompt propertyName="ftp.username" defaultValue="talendforge_dev" promptText="Username" />
+    <propertyprompt propertyName="ftp.password" defaultValue="" promptText="Password" />
+    <propertyprompt propertyName="ftp.dir" defaultValue="/var/www/domains/${project}/dev2/htdocs/" promptText="location" />
+
+    <echo message="Copying fileset '${project}/deploy' on ${ftp.username}@${ftp.host}:${ftp.dir}" />
+    <scp host="${ftp.host}" port="${ftp.port}" username="${ftp.username}" password="${ftp.password}" fetch="false" todir="${ftp.dir}">
+        <fileset refid="files" />
+    </scp>
+  </target>
+</project>
