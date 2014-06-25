@@ -78,11 +78,11 @@
   </fileset>
 
   <target name="deploy" depends="test">
-    <propertyprompt propertyName="ftp.host" defaultValue="199.193.192.196" promptText="Host" />
-    <propertyprompt propertyName="ftp.port" defaultValue="22" promptText="Port" />
-    <propertyprompt propertyName="ftp.username" defaultValue="talendforge_dev" promptText="Username" />
+    <propertyprompt propertyName="ftp.host" defaultValue="your_ip" promptText="Host" />
+    <propertyprompt propertyName="ftp.port" defaultValue="your_port" promptText="Port" />
+    <propertyprompt propertyName="ftp.username" defaultValue="your_username" promptText="Username" />
     <propertyprompt propertyName="ftp.password" defaultValue="" promptText="Password" />
-    <propertyprompt propertyName="ftp.dir" defaultValue="/var/www/domains/${project}/dev2/htdocs/" promptText="location" />
+    <propertyprompt propertyName="ftp.dir" defaultValue="path_on_server" promptText="location" />
 
     <echo message="Copying fileset '${project}/deploy' on ${ftp.username}@${ftp.host}:${ftp.dir}" />
     <scp host="${ftp.host}" port="${ftp.port}" username="${ftp.username}" password="${ftp.password}" fetch="false" todir="${ftp.dir}">
