@@ -8,35 +8,35 @@
 
     <target name="prepare">
         <echo msg="Deleting old build and deploy dirs" />
-        <delete dir="${project}/build" includeemptydirs="true" failonerror="false" />
-        <delete dir="${project}/deploy" includeemptydirs="true" failonerror="false" />
+        <delete dir="${project}/build/tmp" includeemptydirs="true" failonerror="false" />
+        <delete dir="${project}/build/deploy" includeemptydirs="true" failonerror="false" />
     </target>
 
     <target name="create" depends="prepare">
         <echo msg="Creating fresh build and deploy directories" />
-        <mkdir dir="${project}/build" />
-        <mkdir dir="${project}/deploy" />
+        <mkdir dir="${project}/build/tmp" />
+        <mkdir dir="${project}/build/deploy" />
     </target>
 
     <target name="gitcheckout" depends="create">
         <echo msg="Checking out latest code" />
-        <exec command='/usr/bin/git --git-dir="${project}/.git" checkout-index --prefix "${project}/build/" -a' />
+        <exec command='/usr/bin/git --git-dir="${project}/.git" checkout-index --prefix "${project}/build/tmp/" -a' />
     </target>
 
     <target name="preparedeploy" depends="gitcheckout">
         <echo msg="Preparing deploy" />
-        <copy todir="${project}/deploy" >
-            <fileset dir="${project}/build">
+        <copy todir="${project}/build/deploy" >
+            <fileset dir="${project}/build/tmp">
                 <include name="**" />
                 <exclude name="test/**"/>
             </fileset>
         </copy>
-        <mkdir dir="${project}/deploy/logs" />
+        <mkdir dir="${project}/build/deploy/logs" />
     </target>
 
     <target name="cleanup" depends="preparedeploy">
         <echo msg="Deleting build dir" />
-        <delete dir="${project}/build" includeemptydirs="true" failonerror="true" />
+        <delete dir="${project}/build/tmp" includeemptydirs="true" failonerror="true" />
     </target>
 
     <target name="build" depends="cleanup, preparedeploy, gitcheckout, create, prepare">
@@ -46,7 +46,7 @@
         <if>
             <equals arg1="${confirm}" arg2="y" />
             <then>
-                <phingcall target="deploy" />
+                <phingcall target="migrate" />
             </then>
         </if>
     </target>
@@ -70,23 +70,41 @@
             </if>
     </target>
 
-  <!-- DEPLOYMENT -->
+    <!-- DATABASE MIGRATION-->
+    <!-- source from https://github.com/robmorgan/phinx/issues/34 -->
+    <target name="migrate" description="Database Migrations">
+        <echo message="Database migrations with phinx" />
+        <propertyprompt promptText="Please specified database environment of deployment" propertyName="phinx.env" defaultValue="production" />
+        <propertyprompt promptText="Please specified migration path, default (./migration/)" propertyName="phinx.dir" defaultValue="migrations" />
+        <!-- execute phinx in migrate mode -->
+        <exec command="/usr/local/bin/php vendor/robmorgan/phinx/bin/phinx migrate --configuration ./${phinx.dir}/phinx.yml --environment ${phinx.env}"
+              dir="./"
+              checkreturn="true"
+              passthru="true"
+                />
+        <phingcall target="deploy" />
+    </target>
+    <!-- DEPLOYMENT -->
 
-  <fileset dir="${project}/deploy" id="files">
+  <fileset dir="${project}/build/deploy" id="files">
+      <exclude name=".idea/**" />
+      <exclude name=".git/**" />
       <include name="**" />
       <exclude name="test/**"/>
   </fileset>
 
   <target name="deploy" depends="test">
-    <propertyprompt propertyName="ftp.host" defaultValue="199.193.192.196" promptText="Host" />
-    <propertyprompt propertyName="ftp.port" defaultValue="22" promptText="Port" />
-    <propertyprompt propertyName="ftp.username" defaultValue="talendforge_dev" promptText="Username" />
+    <propertyprompt propertyName="ftp.host" defaultValue="_your_ip_" promptText="Host" />
+    <propertyprompt propertyName="ftp.port" defaultValue="_your_port_" promptText="Port" />
+    <propertyprompt propertyName="ftp.username" defaultValue="_your_username_" promptText="Username" />
     <propertyprompt propertyName="ftp.password" defaultValue="" promptText="Password" />
     <propertyprompt propertyName="ftp.dir" defaultValue="/var/www/domains/${project}/dev2/htdocs/" promptText="location" />
 
-    <echo message="Copying fileset '${project}/deploy' on ${ftp.username}@${ftp.host}:${ftp.dir}" />
+    <echo message="Copying fileset '${project}/build/deploy' on ${ftp.username}@${ftp.host}:${ftp.dir}" />
     <scp host="${ftp.host}" port="${ftp.port}" username="${ftp.username}" password="${ftp.password}" fetch="false" todir="${ftp.dir}">
         <fileset refid="files" />
     </scp>
+    <echo message="Delete deploy directory" />
+    <delete dir="${project}/build/deploy" includeemptydirs="true" failonerror="true" />
   </target>
 </project>
